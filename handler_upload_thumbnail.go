@@ -1,10 +1,12 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
@@ -34,20 +36,27 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 
 	const maxMemory = 10 << 20
 	r.ParseMultipartForm(maxMemory)
-	file, header, err := r.FormFile("thumbnail")
+	incomingFile, header, err := r.FormFile("thumbnail")
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "unable to parse form file", err)
 		return
 	}
-	defer file.Close()
+	defer incomingFile.Close()
 	mediaType := header.Header.Get("Content-Type")
-	imageData, err := io.ReadAll(file)
+	mediaTypes := strings.Split(mediaType, "/")
+	fileName := fmt.Sprintf("%s.%s", videoID, mediaTypes[1])
+	filePath := filepath.Join(cfg.assetsRoot, fileName)
+	assetPath, err := os.Create(filePath)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid image data", err)
+		fmt.Println(err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create the file", err)
 		return
 	}
-	base64Encoded := base64.StdEncoding.EncodeToString(imageData)
-	base64Encoded = fmt.Sprintf("data:%s;base64,%s", mediaType, base64Encoded)
+	_, err = io.Copy(assetPath, incomingFile)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't copy the file", err)
+		return
+	}
 	videoInfo, err := cfg.db.GetVideo(videoID)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Video info not available", err)
@@ -57,7 +66,8 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusUnauthorized, "User not authorized", err)
 		return
 	}
-	videoInfo.ThumbnailURL = &base64Encoded
+	thumbUrl := fmt.Sprintf("http://localhost:%s/assets/%s", cfg.port, fileName)
+	videoInfo.ThumbnailURL = &thumbUrl
 	err = cfg.db.UpdateVideo(videoInfo)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "User not authorized", err)
