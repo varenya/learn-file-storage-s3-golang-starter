@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,7 +44,17 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	defer incomingFile.Close()
-	mediaType := header.Header.Get("Content-Type")
+	contentType := header.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid content-type header", err)
+		return
+	}
+	if mediaType != "image/jpeg" && mediaType != "image/png" {
+		respondWithError(w, http.StatusBadRequest, "Invalid format", errors.New("Unsupported format"))
+		return
+	}
+
 	mediaTypes := strings.Split(mediaType, "/")
 	fileName := fmt.Sprintf("%s.%s", videoID, mediaTypes[1])
 	filePath := filepath.Join(cfg.assetsRoot, fileName)
