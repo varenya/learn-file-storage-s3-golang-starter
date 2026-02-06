@@ -56,7 +56,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	mediaTypes := strings.Split(mediaType, "/")
-	fileName := fmt.Sprintf("%s.%s", videoID, mediaTypes[1])
+	fileName := fmt.Sprintf("%s.%s", randomFileName(), mediaTypes[1])
 	filePath := filepath.Join(cfg.assetsRoot, fileName)
 	assetPath, err := os.Create(filePath)
 	if err != nil {
