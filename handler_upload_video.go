@@ -13,6 +13,17 @@ import (
 	"github.com/google/uuid"
 )
 
+func getFileName(aspectRatio, fileType string) string {
+	baseFileName := fmt.Sprintf("%s.%s", randomFileName(), fileType)
+	if aspectRatio == "16:9" {
+		return fmt.Sprintf("landscape/%s", baseFileName)
+	}
+	if aspectRatio == "9:16" {
+		return fmt.Sprintf("portrait/%s", baseFileName)
+	}
+	return fmt.Sprintf("other/%s", baseFileName)
+}
+
 func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request) {
 	videoString := r.PathValue("videoID")
 	videoID, err := uuid.Parse(videoString)
@@ -62,8 +73,13 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "error reseting the file seek", err)
 		return
 	}
+	aspectRatio, err := getVideoAspectRatio(f.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to determine aspect ratio", err)
+		return
+	}
 	mediaTypes := strings.Split(mediaType, "/")
-	fileName := fmt.Sprintf("%s.%s", randomFileName(), mediaTypes[1])
+	fileName := getFileName(aspectRatio, mediaTypes[1])
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Key:         &fileName,
 		Bucket:      &cfg.s3Bucket,
