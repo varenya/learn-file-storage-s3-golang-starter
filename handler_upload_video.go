@@ -73,6 +73,18 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "error reseting the file seek", err)
 		return
 	}
+	processFile, err := processVideoForFastStart(f.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error processing file to optmise for streaming", err)
+		return
+	}
+	defer os.Remove(processFile)
+	contents, err := os.Open(processFile)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error reading the processed file", err)
+		return
+	}
+	defer contents.Close()
 	aspectRatio, err := getVideoAspectRatio(f.Name())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to determine aspect ratio", err)
@@ -84,7 +96,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		Key:         &fileName,
 		Bucket:      &cfg.s3Bucket,
 		ContentType: &contentType,
-		Body:        f,
+		Body:        contents,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "error uploading the file in S3", err)

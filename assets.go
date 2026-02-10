@@ -81,3 +81,19 @@ func getVideoAspectRatio(filePath string) (string, error) {
 	}
 	return "other", nil
 }
+
+func processVideoForFastStart(filePath string) (string, error) {
+	outputFile, err := os.CreateTemp("", "tubely-video")
+	outputFileName := outputFile.Name() + ".mp4"
+	if err != nil {
+		return "", err
+	}
+	argString := fmt.Sprintf("-i %s -c copy -movflags faststart -f mp4 %s", filePath, outputFileName)
+	cmdArgs := strings.Split(argString, " ")
+	cmd := exec.Command("ffmpeg", cmdArgs...)
+	err = cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	return outputFileName, nil
+}
